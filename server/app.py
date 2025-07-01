@@ -4,7 +4,7 @@ from flask import Flask, request, make_response
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
 
-from models import db, Newsletter
+from server.models import db, Newsletter
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///newsletters.db'
@@ -19,11 +19,11 @@ api = Api(app)
 class Home(Resource):
 
     def get(self):
-        
+
         response_dict = {
             "message": "Welcome to the Newsletter RESTful API",
         }
-        
+
         response = make_response(
             response_dict,
             200,
@@ -36,7 +36,7 @@ api.add_resource(Home, '/')
 class Newsletters(Resource):
 
     def get(self):
-        
+
         response_dict_list = [n.to_dict() for n in Newsletter.query.all()]
 
         response = make_response(
@@ -47,7 +47,7 @@ class Newsletters(Resource):
         return response
 
     def post(self):
-        
+
         new_record = Newsletter(
             title=request.form['title'],
             body=request.form['body'],
@@ -71,7 +71,12 @@ class NewsletterByID(Resource):
 
     def get(self, id):
 
-        response_dict = Newsletter.query.filter_by(id=id).first().to_dict()
+        record = Newsletter.query.filter_by(id=id).first()
+        if not record:
+            response_dict = {"error": "Newsletter not found"}
+            return make_response(response_dict, 404)
+
+        response_dict = record.to_dict()
 
         response = make_response(
             response_dict,
@@ -80,8 +85,48 @@ class NewsletterByID(Resource):
 
         return response
 
-api.add_resource(NewsletterByID, '/newsletters/<int:id>')
+    def patch(self, id):
 
+        record = Newsletter.query.filter_by(id=id).first()
+        if not record:
+            response_dict = {"error": "Newsletter not found"}
+            return make_response(response_dict, 404)
+
+        for attr in request.form:
+            setattr(record, attr, request.form[attr])
+
+        db.session.add(record)
+        db.session.commit()
+
+        response_dict = record.to_dict()
+
+        response = make_response(
+            response_dict,
+            200
+        )
+
+        return response
+
+    def delete(self, id):
+
+        record = Newsletter.query.filter_by(id=id).first()
+        if not record:
+            response_dict = {"error": "Newsletter not found"}
+            return make_response(response_dict, 404)
+
+        db.session.delete(record)
+        db.session.commit()
+
+        response_dict = {"message": "record successfully deleted"}
+
+        response = make_response(
+            response_dict,
+            200
+        )
+
+        return response
+
+api.add_resource(NewsletterByID, '/newsletters/<int:id>')
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
